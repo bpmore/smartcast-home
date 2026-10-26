@@ -523,12 +523,13 @@ BG_THEMES = [t.strip() for t in ENV.get("BG_THEMES", "").split("|") if t.strip()
     "San Diego skyline", "Chicago skyline", "cityscape at night",
 ]
 _bg_cache = {}                       # token -> (bytes, content_type)
-_bg_pool = {"t": 0, "urls": []}      # pooled image URLs across all themes
+_bg_meta = {}                        # token -> {theme, photographer, alt}
+_bg_pool = {"t": 0, "items": []}     # pooled {url, theme, photographer, alt} across themes
 _bg_lock = threading.Lock()
 
 
 def _refresh_bg_pool():
-    urls = []
+    items = []
     for q in BG_THEMES:
         try:
             r = requests.get("https://api.pexels.com/v1/search",
@@ -539,22 +540,24 @@ def _refresh_bg_pool():
             for p in r.json().get("photos", []):
                 u = p.get("src", {}).get("large2x") or p.get("src", {}).get("large")
                 if u:
-                    urls.append(u)
+                    items.append({"url": u, "theme": q,
+                                  "photographer": p.get("photographer", ""),
+                                  "alt": (p.get("alt") or "").strip()})
         except Exception:
             pass
-    return urls
+    return items
 
 
-def _bg_pool_urls():
+def _bg_pool_items():
     if not PEXELS_KEY:
         return []
-    if not _bg_pool["urls"] or time.time() - _bg_pool["t"] > 6 * 3600:
+    if not _bg_pool["items"] or time.time() - _bg_pool["t"] > 6 * 3600:
         with _bg_lock:
-            if not _bg_pool["urls"] or time.time() - _bg_pool["t"] > 6 * 3600:
-                u = _refresh_bg_pool()
-                if u:
-                    _bg_pool.update(t=time.time(), urls=u)
-    return _bg_pool["urls"]
+            if not _bg_pool["items"] or time.time() - _bg_pool["t"] > 6 * 3600:
+                it = _refresh_bg_pool()
+                if it:
+                    _bg_pool.update(t=time.time(), items=it)
+    return _bg_pool["items"]
 
 
 @app.get("/bg/next")
@@ -563,19 +566,29 @@ def bg_next():
     if token in _bg_cache:
         data, ct = _bg_cache[token]
         return Response(data, mimetype=ct)
-    pool = _bg_pool_urls()
-    src = random.choice(pool) if pool else BG_SOURCE
+    pool = _bg_pool_items()
+    item = random.choice(pool) if pool else None
+    src = item["url"] if item else BG_SOURCE
     try:
         r = requests.get(src, timeout=12)
         r.raise_for_status()
         data = r.content
         ct = r.headers.get("Content-Type", "image/jpeg")
         _bg_cache[token] = (data, ct)
+        _bg_meta[token] = ({"theme": item["theme"], "photographer": item["photographer"],
+                            "alt": item["alt"]} if item else {})
         while len(_bg_cache) > 4:
-            _bg_cache.pop(next(iter(_bg_cache)))
+            k = next(iter(_bg_cache))
+            _bg_cache.pop(k)
+            _bg_meta.pop(k, None)
         return Response(data, mimetype=ct)
     except Exception:
         return send_from_directory(os.path.join(app.static_folder, "bg"), "bg1.jpg")
+
+
+@app.get("/api/bg/meta")
+def bg_meta():
+    return jsonify(_bg_meta.get(request.args.get("t", ""), {}))
 
 
 @app.get("/")
@@ -588,5 +601,5 @@ if __name__ == "__main__":
     print(f"Home-screen takeover watcher ON -> {LAUNCHER_URL}")
     print("Open http://localhost:8750  (or http://<this-mac-ip>:8750 from your phone)")
     threading.Thread(target=_watcher, daemon=True).start()
-    threading.Thread(target=_bg_pool_urls, daemon=True).start()  # warm the image pool
+    threading.Thread(target=_bg_pool_items, daemon=True).start()  # warm the image pool
     app.run(host="0.0.0.0", port=8750, threaded=True)

@@ -65,6 +65,11 @@
     box-shadow:0 0 0 .3vw var(--ring),0 2vh 5vh rgba(0,0,0,.5);z-index:2}
   .hint{text-align:center;color:var(--sec);font-size:1.4vw;margin-top:3vh;letter-spacing:.02em;
     background:var(--scrim);border-radius:999px;padding:.8vh 2vw;align-self:center}
+  /* background image caption (lower right) */
+  .bgcap{position:absolute;bottom:1.6vh;right:2.5vw;z-index:3;text-align:right;
+    background:var(--scrim);border-radius:.9vw;padding:.7vh 1.3vw;max-width:46%;display:none}
+  .bgcap .loc{font-size:1.35vw;color:var(--fg);font-weight:600}
+  .bgcap .by{font-size:1vw;color:var(--sec);margin-top:.2vh}
   /* launching overlay */
   .ov{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(5,7,13,.86);display:none;
     align-items:center;justify-content:center;flex-direction:column;gap:3vh;z-index:10}
@@ -92,6 +97,8 @@
 
   <div class="grid" id="grid"></div>
   <div class="hint">◀ ▲ ▼ ▶ to move · <b>OK</b> to open · <b>Home</b> returns here</div>
+
+  <div class="bgcap" id="bgcap"></div>
 
   <div class="ov" id="ov"><div class="spin"></div><div class="big" id="ovtxt">Launching…</div></div>
 
@@ -227,7 +234,8 @@ const ROTATE_MS=60*1000;   // new image every 1 minute
 const bgEls=[document.getElementById('bgA'),document.getElementById('bgB')];
 let bgActive=0;
 function rotateBg(){
-  const url="/bg/next?t="+Date.now();
+  const token=Date.now();
+  const url="/bg/next?t="+token;
   const incoming=bgEls[1-bgActive];
   const img=new Image();
   img.onload=()=>{
@@ -235,9 +243,22 @@ function rotateBg(){
     incoming.classList.add('on');
     bgEls[bgActive].classList.remove('on');
     bgActive=1-bgActive;
+    fetchCaption(token);
   };
   img.onerror=()=>{};   // keep current background if a fetch fails
   img.src=url;
+}
+async function fetchCaption(token){
+  try{
+    const r=await fetch('/api/bg/meta?t='+token); const m=await r.json();
+    const cap=document.getElementById('bgcap');
+    if(m && m.theme){
+      const loc=m.theme.charAt(0).toUpperCase()+m.theme.slice(1);
+      const by=m.photographer ? ('Photo: '+m.photographer+' · Pexels') : '';
+      cap.innerHTML='<div class="loc">'+loc+'</div>'+(by?'<div class="by">'+by+'</div>':'');
+      cap.style.display='block';
+    }else{ cap.style.display='none'; }
+  }catch(e){}
 }
 rotateBg(); setInterval(rotateBg,ROTATE_MS);
 
