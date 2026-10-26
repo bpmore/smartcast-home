@@ -138,7 +138,7 @@
   </div>
 
   <div class="card">
-    <div class="label">Roku (HDMI-2) <span id="rokuStatus" style="float:right;text-transform:none;letter-spacing:0;color:var(--muted)">—</span></div>
+    <div class="label"><span id="rokuTitle">Roku (HDMI-2)</span> <span id="rokuStatus" style="float:right;text-transform:none;letter-spacing:0;color:var(--muted)">—</span></div>
     <button class="btn accent wide" style="margin-bottom:14px" onclick="post('/api/roku/switch',{},'Switched to Roku')">📺 Switch TV to Roku</button>
     <div class="dpad">
       <div></div>
@@ -185,7 +185,17 @@
   <div class="toast" id="toast"></div>
 
 <script>
-let STATE=null, APPS={favorites:[],all:[]};
+let STATE=null, APPS={favorites:[],all:[]}, TV_MODEL='';
+function subPrefix(){return TV_MODEL?('Vizio '+TV_MODEL):'SmartCast';}
+async function loadDevice(){
+  try{
+    const r=await fetch('/api/device'); const d=await r.json();
+    if(d.ok){
+      if(d.name) document.querySelector('h1').textContent=d.name;
+      if(d.model) TV_MODEL=d.model;
+    }
+  }catch(e){}
+}
 
 function showToast(msg){
   const t=document.getElementById('toast');
@@ -222,7 +232,7 @@ function render(s){
     setStatus(false,'Unreachable');
     document.getElementById('statusDot').style.background='var(--warn)';
     document.getElementById('statusDot').style.boxShadow='0 0 8px var(--warn)';
-    document.getElementById('sub').textContent='SmartCast · off network — tap Power to wake';
+    document.getElementById('sub').textContent=subPrefix()+' · off network — tap Power to wake';
     const pb=document.getElementById('powerBtn');
     pb.className='btn power wide'; pb.textContent='⏻ Power — Wake TV';
     document.getElementById('volTxt').textContent='Vol —';
@@ -232,7 +242,7 @@ function render(s){
   document.getElementById('statusDot').style.boxShadow='';
   setStatus(s.power, s.power?'On':'Standby');
   const app = s.app && s.app!=='SmartCast Home' ? ' · '+s.app : '';
-  document.getElementById('sub').textContent='SmartCast · '+(s.input||'—')+app;
+  document.getElementById('sub').textContent=subPrefix()+' · '+(s.input||'—')+app;
   const pb=document.getElementById('powerBtn');
   pb.className='btn power wide'+(s.power?' on':''); pb.textContent=(s.power?'⏻ Power — On':'⏻ Power — Standby');
   // volume (null when the TV is in standby)
@@ -314,6 +324,7 @@ async function refreshRoku(){
     const r=await fetch('/api/roku/state'); const s=await r.json();
     const el=document.getElementById('rokuStatus');
     el.textContent = s.reachable===false ? 'unreachable' : (s.app||'—');
+    if(s.name) document.getElementById('rokuTitle').textContent='Roku — '+s.name+' (HDMI-2)';
   }catch(e){ document.getElementById('rokuStatus').textContent='—'; }
 }
 
@@ -334,6 +345,7 @@ async function toggleTakeover(){
   setTimeout(refreshTakeover,400);
 }
 refreshTakeover(); setInterval(refreshTakeover,6000);
+loadDevice();
 
 setInterval(refresh,4000);
 setInterval(refreshRoku,5000);

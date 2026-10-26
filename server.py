@@ -85,6 +85,34 @@ def tv(fn, *a, retries=2, **kw):
     return None
 
 
+_device_info = {"data": None}
+
+
+@app.get("/api/device")
+def device():
+    """The TV's own name + model, so the UI can personalize without hardcoding."""
+    if _device_info["data"]:
+        return jsonify(_device_info["data"])
+    name, model = "", ""
+    try:
+        model = tv("get_model_name") or ""
+    except Exception:
+        pass
+    try:
+        r = requests.get("https://" + IP + "/state/device/deviceinfo",
+                         headers={"AUTH": AUTH}, verify=False, timeout=5)
+        name = r.json()["ITEMS"][0]["VALUE"].get("CAST_NAME", "") or ""
+        for suf in (" Display", " TV"):
+            if name.endswith(suf):
+                name = name[:-len(suf)]
+    except Exception:
+        pass
+    data = {"ok": True, "name": name.strip(), "model": model}
+    if name or model:
+        _device_info["data"] = data
+    return jsonify(data)
+
+
 @app.get("/api/state")
 def state():
     # power: None = unreachable, False = off (but reachable), True = on
@@ -235,17 +263,35 @@ def _match(term, apps):
     return None
 
 
+_roku_name = {"v": None}
+
+
+def _roku_device_name():
+    if _roku_name["v"] is not None:
+        return _roku_name["v"]
+    try:
+        root = ET.fromstring(roku("GET", "/query/device-info").text)
+        el = root.find("user-device-name")
+        if el is None or not (el.text or "").strip():
+            el = root.find("friendly-device-name")
+        _roku_name["v"] = (el.text or "").strip() if el is not None else ""
+    except Exception:
+        _roku_name["v"] = ""
+    return _roku_name["v"]
+
+
 @app.get("/api/roku/state")
 def roku_state():
     try:
         xml = roku("GET", "/query/active-app").text
         root = ET.fromstring(xml)
         el = root.find("app")
-        return jsonify({"ok": True, "reachable": True,
+        return jsonify({"ok": True, "reachable": True, "name": _roku_device_name(),
                         "app": (el.text or "").strip() if el is not None else None,
                         "app_id": el.get("id") if el is not None else None})
     except Exception as e:
-        return jsonify({"ok": True, "reachable": False, "app": None, "error": str(e)})
+        return jsonify({"ok": True, "reachable": False, "name": _roku_name["v"] or "",
+                        "app": None, "error": str(e)})
 
 
 @app.get("/api/roku/apps")
