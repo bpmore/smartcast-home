@@ -1,0 +1,17 @@
+# Linux systemd unit (e.g. a Raspberry Pi). Copy to /etc/systemd/system/,
+# edit User and paths, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now smartcast-home
+[Unit]
+Description=SmartCast custom home screen + remote
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/smartcast-home
+ExecStart=/home/pi/smartcast-home/.venv/bin/python /home/pi/smartcast-home/server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

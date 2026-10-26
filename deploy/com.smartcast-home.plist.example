@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- macOS launchd agent. Copy to ~/Library/LaunchAgents/, edit the paths,
+     then: launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.smartcast-home.plist -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.smartcast-home</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/ABSOLUTE/PATH/smartcast-home/.venv/bin/python</string>
+    <string>/ABSOLUTE/PATH/smartcast-home/server.py</string>
+  </array>
+  <key>WorkingDirectory</key><string>/ABSOLUTE/PATH/smartcast-home</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/ABSOLUTE/PATH/smartcast-home/server.log</string>
+  <key>StandardErrorPath</key><string>/ABSOLUTE/PATH/smartcast-home/server.log</string>
+</dict>
+</plist>

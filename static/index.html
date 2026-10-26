@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>SmartCast Remote</title>
+<style>
+  :root{
+    --bg:#0b0d12; --card:#161a22; --card2:#1d222c; --line:#2a303c;
+    --txt:#e8ecf3; --muted:#8a93a3; --accent:#5b8cff; --accent2:#3a6dff;
+    --good:#34d399; --warn:#f59e0b; --radius:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;
+    padding:max(16px,env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+    max-width:520px;margin:0 auto;}
+  h1{font-size:18px;margin:0;font-weight:650;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+  .pill{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);
+    border-radius:999px;padding:7px 12px;font-size:12.5px;color:var(--muted)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+  .dot.on{background:var(--good);box-shadow:0 0 8px var(--good)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px;margin-bottom:14px}
+  .label{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:11px}
+  .btn{appearance:none;border:1px solid var(--line);background:var(--card2);color:var(--txt);
+    border-radius:14px;padding:14px;font-size:15px;font-weight:550;cursor:pointer;
+    transition:transform .05s,background .15s,border-color .15s;user-select:none}
+  .btn:active{transform:scale(.95);background:#252b37}
+  .btn.accent{background:linear-gradient(180deg,var(--accent),var(--accent2));border-color:transparent}
+  .btn.wide{width:100%}
+  .btn.power{background:#2a1416;border-color:#512027;color:#ff8a93}
+  .btn.power.on{background:#132a1c;border-color:#1f5138;color:#5ef2ad}
+  .row{display:flex;gap:10px}
+  .grid{display:grid;gap:10px}
+  .inputs{grid-template-columns:repeat(3,1fr)}
+  .btn.sel{border-color:var(--accent);background:#1b2742;color:#cfe0ff}
+  /* volume */
+  .vol{display:flex;align-items:center;gap:12px}
+  .vol .btn{flex:0 0 64px;font-size:26px;padding:12px 0}
+  .volmeter{flex:1}
+  .barwrap{height:10px;background:#0e1118;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .2s}
+  .volnum{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-top:7px}
+  /* dpad */
+  .dpad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,56px);gap:8px;max-width:260px;margin:0 auto}
+  .dpad .btn{font-size:20px;display:flex;align-items:center;justify-content:center}
+  .dpad .ok{background:var(--card2)}
+  .navrow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+  .navrow .btn{font-size:12px;padding:12px 4px}
+  .media{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+  .media .btn{font-size:18px;padding:12px 0}
+  /* apps */
+  .appgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .appgrid .btn{font-size:13px;padding:14px 6px;min-height:54px;display:flex;align-items:center;justify-content:center;text-align:center}
+  .search{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:12px;
+    color:var(--txt);padding:12px 14px;font-size:15px;margin-bottom:10px}
+  .search::placeholder{color:var(--muted)}
+  .applist{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:12px}
+  .applist div{padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14.5px}
+  .applist div:last-child{border-bottom:none}
+  .applist div:active{background:#252b37}
+  .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    background:#222835;border:1px solid var(--line);color:var(--txt);padding:10px 16px;border-radius:999px;
+    font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+  .toast.show{opacity:1}
+  .hint{color:var(--muted);font-size:11.5px;text-align:center;margin-top:4px}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>SmartCast TV</h1>
+      <div class="sub" id="sub">SmartCast · connecting…</div>
+    </div>
+    <div class="pill"><span class="dot" id="statusDot"></span><span id="statusTxt">—</span></div>
+  </div>
+
+  <div class="card">
+    <button class="btn power wide" id="powerBtn" onclick="post('/api/power',{},'Power')">⏻ Power</button>
+  </div>
+
+  <div class="card">
+    <div class="label">Volume</div>
+    <div class="vol">
+      <button class="btn" onclick="vol('down')">–</button>
+      <div class="volmeter">
+        <div class="barwrap"><div class="bar" id="volBar"></div></div>
+        <div class="volnum"><span id="volTxt">—</span><span id="muteTxt"></span></div>
+      </div>
+      <button class="btn" onclick="vol('up')">+</button>
+    </div>
+    <button class="btn wide" style="margin-top:12px" onclick="post('/api/mute',{},'Mute')">🔇 Mute</button>
+  </div>
+
+  <div class="card">
+    <div class="label">Inputs</div>
+    <div class="grid inputs" id="inputs"></div>
+  </div>
+
+  <div class="card">
+    <div class="label">Navigation</div>
+    <div class="dpad">
+      <div></div>
+      <button class="btn" onclick="key('UP')">▲</button>
+      <div></div>
+      <button class="btn" onclick="key('LEFT')">◀</button>
+      <button class="btn ok" onclick="key('OK')">OK</button>
+      <button class="btn" onclick="key('RIGHT')">▶</button>
+      <div></div>
+      <button class="btn" onclick="key('DOWN')">▼</button>
+      <div></div>
+    </div>
+    <div class="navrow">
+      <button class="btn" onclick="key('BACK')">Back</button>
+      <button class="btn" onclick="key('HOME')">Home</button>
+      <button class="btn" onclick="key('MENU')">Menu</button>
+      <button class="btn" onclick="key('EXIT')">Exit</button>
+    </div>
+    <div class="media">
+      <button class="btn" onclick="key('SEEK_BACK')">⏪</button>
+      <button class="btn" onclick="key('PLAY')">⏵</button>
+      <button class="btn" onclick="key('PAUSE')">⏸</button>
+      <button class="btn" onclick="key('SEEK_FWD')">⏩</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">SmartCast Apps</div>
+    <div class="appgrid" id="favApps"></div>
+    <div style="margin-top:14px">
+      <input class="search" id="appSearch" placeholder="Search all SmartCast apps…" oninput="filterApps()">
+      <div class="applist" id="appList" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">Roku (HDMI-2) <span id="rokuStatus" style="float:right;text-transform:none;letter-spacing:0;color:var(--muted)">—</span></div>
+    <button class="btn accent wide" style="margin-bottom:14px" onclick="post('/api/roku/switch',{},'Switched to Roku')">📺 Switch TV to Roku</button>
+    <div class="dpad">
+      <div></div>
+      <button class="btn" onclick="rk('Up')">▲</button>
+      <div></div>
+      <button class="btn" onclick="rk('Left')">◀</button>
+      <button class="btn ok" onclick="rk('Select')">OK</button>
+      <button class="btn" onclick="rk('Right')">▶</button>
+      <div></div>
+      <button class="btn" onclick="rk('Down')">▼</button>
+      <div></div>
+    </div>
+    <div class="navrow">
+      <button class="btn" onclick="rk('Back')">Back</button>
+      <button class="btn" onclick="rk('Home')">Home</button>
+      <button class="btn" onclick="rk('InstantReplay')">⟲ Replay</button>
+      <button class="btn" onclick="rk('Info')">∗ Options</button>
+    </div>
+    <div class="media">
+      <button class="btn" onclick="rk('Rev')">⏪</button>
+      <button class="btn" onclick="rk('Play')">⏯</button>
+      <button class="btn" onclick="rk('Fwd')">⏩</button>
+      <button class="btn" onclick="rk('Backspace')">⌫</button>
+    </div>
+    <div class="label" style="margin-top:16px">Roku Channels</div>
+    <div class="appgrid" id="rokuFav"></div>
+    <div style="margin-top:14px">
+      <input class="search" id="rokuSearch" placeholder="Search all Roku channels…" oninput="filterRoku()">
+      <div class="applist" id="rokuList" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">Custom Home Screen <span id="takeoverState" style="float:right;text-transform:none;letter-spacing:0;color:var(--muted)">—</span></div>
+    <div class="row">
+      <button class="btn accent" style="flex:1" onclick="post('/api/launcher/home',{},'Home screen')">🏠 Launch Home Screen</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" style="flex:1" id="takeoverBtn" onclick="toggleTakeover()">Takeover: —</button>
+    </div>
+    <div class="hint">Pause to use stock SmartCast; resume to auto-bounce back to your home screen.</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+let STATE=null, APPS={favorites:[],all:[]};
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1400);
+}
+async function post(url,body,label){
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+    const j=await r.json();
+    if(!j.ok) showToast('⚠ '+(j.error||'failed'));
+    else if(label) showToast(label+' ✓');
+    setTimeout(refresh,400);
+  }catch(e){ showToast('⚠ offline'); }
+}
+const vol=d=>post('/api/volume',{dir:d,amount:1});
+const key=k=>post('/api/key',{key:k},null);
+const setInput=n=>post('/api/input',{name:n},'Input');
+const launch=n=>post('/api/launch',{name:n},n);
+
+async function refresh(){
+  try{
+    const r=await fetch('/api/state'); const s=await r.json();
+    if(!s.ok){ setStatus(false,'error'); return; }
+    STATE=s; render(s);
+  }catch(e){ setStatus(false,'offline'); }
+}
+function setStatus(on,txt){
+  document.getElementById('statusDot').className='dot'+(on?' on':'');
+  document.getElementById('statusTxt').textContent=txt;
+}
+function render(s){
+  if(s.reachable===false){
+    setStatus(false,'Unreachable');
+    document.getElementById('statusDot').style.background='var(--warn)';
+    document.getElementById('statusDot').style.boxShadow='0 0 8px var(--warn)';
+    document.getElementById('sub').textContent='SmartCast · off network — tap Power to wake';
+    const pb=document.getElementById('powerBtn');
+    pb.className='btn power wide'; pb.textContent='⏻ Power — Wake TV';
+    document.getElementById('volTxt').textContent='Vol —';
+    document.getElementById('volBar').style.width='0%';
+    return;
+  }
+  document.getElementById('statusDot').style.boxShadow='';
+  setStatus(s.power, s.power?'On':'Standby');
+  const app = s.app && s.app!=='SmartCast Home' ? ' · '+s.app : '';
+  document.getElementById('sub').textContent='SmartCast · '+(s.input||'—')+app;
+  const pb=document.getElementById('powerBtn');
+  pb.className='btn power wide'+(s.power?' on':''); pb.textContent=(s.power?'⏻ Power — On':'⏻ Power — Standby');
+  // volume (null when the TV is in standby)
+  const hasVol = s.volume!=null;
+  const pct = hasVol ? Math.round((s.volume/(s.max_volume||100))*100) : 0;
+  document.getElementById('volBar').style.width=pct+'%';
+  document.getElementById('volTxt').textContent = hasVol ? ('Vol '+s.volume) : 'Vol —';
+  document.getElementById('muteTxt').textContent = s.muted?'Muted':'';
+  // inputs
+  const wrap=document.getElementById('inputs');
+  if(wrap.dataset.sig!==JSON.stringify(s.inputs)){
+    wrap.dataset.sig=JSON.stringify(s.inputs); wrap.innerHTML='';
+    s.inputs.forEach(i=>{
+      const b=document.createElement('button');
+      b.className='btn'; b.textContent=i.label;
+      b.onclick=()=>setInput(i.name); b.dataset.name=i.name;
+      wrap.appendChild(b);
+    });
+  }
+  [...wrap.children].forEach(b=>{
+    const match = s.input && (b.dataset.name===s.input || b.textContent.toUpperCase()===(''+s.input).toUpperCase());
+    b.className='btn'+(match?' sel':'');
+  });
+}
+async function loadApps(){
+  try{
+    const r=await fetch('/api/apps'); const j=await r.json();
+    if(!j.ok) return; APPS=j;
+    const fav=document.getElementById('favApps'); fav.innerHTML='';
+    j.favorites.forEach(n=>{
+      const b=document.createElement('button'); b.className='btn'; b.textContent=n;
+      b.onclick=()=>launch(n); fav.appendChild(b);
+    });
+  }catch(e){}
+}
+function filterApps(){
+  const q=document.getElementById('appSearch').value.trim().toLowerCase();
+  const list=document.getElementById('appList');
+  if(!q){ list.style.display='none'; list.innerHTML=''; return; }
+  const hits=APPS.all.filter(a=>a.toLowerCase().includes(q)).slice(0,40);
+  list.innerHTML=''; list.style.display='block';
+  hits.forEach(n=>{
+    const d=document.createElement('div'); d.textContent=n;
+    d.onclick=()=>{ launch(n); document.getElementById('appSearch').value=''; filterApps(); };
+    list.appendChild(d);
+  });
+  if(!hits.length){ list.innerHTML='<div style="color:var(--muted)">No match</div>'; }
+}
+// ---- Roku ----
+let ROKU={favorites:[],all:[]};
+const rk=key=>post('/api/roku/key',{key},null);
+const rkLaunch=(id,name)=>post('/api/roku/launch',{id},name);
+async function loadRoku(){
+  try{
+    const r=await fetch('/api/roku/apps'); const j=await r.json();
+    if(!j.ok) return; ROKU=j;
+    const fav=document.getElementById('rokuFav'); fav.innerHTML='';
+    j.favorites.forEach(a=>{
+      const b=document.createElement('button'); b.className='btn'; b.textContent=a.label||a.name;
+      b.onclick=()=>rkLaunch(a.id,a.label||a.name); fav.appendChild(b);
+    });
+  }catch(e){}
+}
+function filterRoku(){
+  const q=document.getElementById('rokuSearch').value.trim().toLowerCase();
+  const list=document.getElementById('rokuList');
+  if(!q){ list.style.display='none'; list.innerHTML=''; return; }
+  const hits=ROKU.all.filter(a=>a.name.toLowerCase().includes(q)).slice(0,40);
+  list.innerHTML=''; list.style.display='block';
+  hits.forEach(a=>{
+    const d=document.createElement('div'); d.textContent=a.label||a.name;
+    d.onclick=()=>{ rkLaunch(a.id,a.label||a.name); document.getElementById('rokuSearch').value=''; filterRoku(); };
+    list.appendChild(d);
+  });
+  if(!hits.length) list.innerHTML='<div style="color:var(--muted)">No match</div>';
+}
+async function refreshRoku(){
+  try{
+    const r=await fetch('/api/roku/state'); const s=await r.json();
+    const el=document.getElementById('rokuStatus');
+    el.textContent = s.reachable===false ? 'unreachable' : (s.app||'—');
+  }catch(e){ document.getElementById('rokuStatus').textContent='—'; }
+}
+
+refresh(); loadApps(); loadRoku(); refreshRoku();
+
+// ---- takeover control ----
+let PAUSED=false;
+async function refreshTakeover(){
+  try{
+    const r=await fetch('/api/launcher/status'); const s=await r.json();
+    PAUSED=!!s.paused;
+    document.getElementById('takeoverState').textContent = s.paused?'paused':'active';
+    document.getElementById('takeoverBtn').textContent = s.paused?'Takeover: Paused — tap to resume':'Takeover: Active — tap to pause';
+  }catch(e){}
+}
+async function toggleTakeover(){
+  await post(PAUSED?'/api/launcher/resume':'/api/launcher/pause',{},PAUSED?'Takeover resumed':'Takeover paused');
+  setTimeout(refreshTakeover,400);
+}
+refreshTakeover(); setInterval(refreshTakeover,6000);
+
+setInterval(refresh,4000);
+setInterval(refreshRoku,5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home</title>
+<style>
+  :root{
+    --bg:#05070d; --fg:#eef2f8; --muted:#8893a6; --ring:#5b8cff;
+    --tile:#141a26; --tile2:#1b2332; --line:#283142;
+    --sec:#d2dae6;                      /* AA-safe secondary text on the scrim */
+    --scrim:rgba(6,9,14,.82);           /* opaque backing so contrast is image-independent */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--fg);overflow:hidden;
+    font:400 1.6vw/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  body{background:radial-gradient(130vw 90vh at 50% -10%, #11203f 0%, #05070d 65%);
+    display:flex;flex-direction:column;padding:5vh 5vw;position:relative}
+  /* rotating ambient background (Cobalt-safe: absolute + explicit sizing, no inset/fixed) */
+  .bg{position:absolute;top:0;left:0;width:100%;height:100%;
+    background-size:cover;background-position:center;
+    opacity:0;transition:opacity 1.8s ease-in-out;z-index:0}
+  .bg.on{opacity:1}
+  .bgov{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;
+    background:linear-gradient(180deg,rgba(5,7,13,.5) 0%,rgba(5,7,13,.42) 38%,rgba(5,7,13,.86) 100%)}
+  header,.mid,.grid,.hint{position:relative;z-index:2}
+  /* header */
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:2vw}
+  .hgroup,.wx{background:var(--scrim);border-radius:1.4vw;padding:1.4vw 1.9vw}
+  .clock{font-size:9vw;font-weight:700;letter-spacing:-.02em;line-height:1}
+  .date{font-size:2.2vw;color:var(--sec);margin-top:.6vh;font-weight:500}
+  .wx{display:flex;flex-direction:column;align-items:flex-end;gap:.6vh}
+  .wx-now{display:flex;align-items:center;gap:1.4vw}
+  .wx-icon{font-size:5vw;line-height:1}
+  .wx-temp{font-size:5vw;font-weight:650;line-height:1}
+  .wx-sub{font-size:1.7vw;color:var(--sec);margin-top:.8vh}
+  /* 3-day forecast inside the weather panel (Cobalt-safe: margins, not gap) */
+  .wx-days{display:flex;margin-top:1.4vh}
+  .wx-day{text-align:center;color:var(--sec)}
+  .wx-day + .wx-day{margin-left:2.4vw}
+  .wx-day b{display:block;color:var(--fg);font-weight:600;font-size:1.6vw;margin-bottom:.7vh}
+  .wx-day .di{display:block;font-size:2.6vw;line-height:1;margin-bottom:.7vh}
+  .wx-day .temps{font-size:1.5vw;white-space:nowrap}
+  /* tiles */
+  /* quote of the day, centered in the open middle */
+  .mid{flex:1;display:flex;align-items:center;justify-content:center;padding:2vh 0}
+  .quote{margin:0;width:100%;height:22vh;box-sizing:border-box;overflow:hidden;
+    display:flex;flex-direction:column;justify-content:center;align-items:center;
+    text-align:center;background:var(--scrim);border-radius:1.6vw;padding:2.5vh 4.5vw;
+    font-size:2.7vw}   /* base size; JS shrinks it to fit long quotes */
+  .quote .qt{font-size:1em;font-weight:500;line-height:1.4;color:var(--fg)}
+  .quote .qa{font-size:.66em;color:var(--sec);margin-top:1.4vh}
+  .quote .qc{font-size:1.1vw;color:var(--sec);margin-top:1.2vh}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:18vh;
+    gap:2vw;align-content:end}
+  .tile{background:linear-gradient(160deg,var(--tile2),var(--tile));border:0.25vw solid var(--line);
+    border-radius:1.6vw;display:flex;flex-direction:column;justify-content:center;align-items:center;
+    padding:1.4vw;position:relative;overflow:hidden;transition:transform .12s,border-color .12s,box-shadow .12s}
+  .tile .ic{font-size:3.6vw;line-height:1}
+  .tile .nm{font-size:1.9vw;font-weight:600;margin-top:.8vh}
+  .tile .sub{font-size:1.2vw;color:var(--muted);margin-top:.3vh}
+  .tile .accent{position:absolute;inset:0;opacity:.14;background:var(--a,#5b8cff)}
+  .tile.focus{transform:scale(1.07);border-color:var(--ring);
+    box-shadow:0 0 0 .3vw var(--ring),0 2vh 5vh rgba(0,0,0,.5);z-index:2}
+  .hint{text-align:center;color:var(--sec);font-size:1.4vw;margin-top:3vh;letter-spacing:.02em;
+    background:var(--scrim);border-radius:999px;padding:.8vh 2vw;align-self:center}
+  /* launching overlay */
+  .ov{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(5,7,13,.86);display:none;
+    align-items:center;justify-content:center;flex-direction:column;gap:3vh;z-index:10}
+  .ov.show{display:flex}
+  .ov .big{font-size:3.4vw;font-weight:650}
+  .spin{width:6vw;height:6vw;border:.6vw solid #223;border-top-color:var(--ring);
+    border-radius:50%;animation:s .9s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+  <div class="bg" id="bgA"></div>
+  <div class="bg" id="bgB"></div>
+  <div class="bgov"></div>
+
+  <header>
+    <div class="hgroup">
+      <div class="clock" id="clock">--:--</div>
+      <div class="date" id="date">—</div>
+    </div>
+    <div class="wx" id="wx"><div class="wx-sub">weather…</div></div>
+  </header>
+
+  <div class="mid"></div>
+
+  <div class="grid" id="grid"></div>
+  <div class="hint">◀ ▲ ▼ ▶ to move · <b>OK</b> to open · <b>Home</b> returns here</div>
+
+  <div class="ov" id="ov"><div class="spin"></div><div class="big" id="ovtxt">Launching…</div></div>
+
+<script>
+// ---- tiles ----
+// All app tiles launch on the Roku (HDMI-2) — the maintained platform.
+// `name` must match the Roku channel name; the Roku tile goes to Roku home.
+const TILES=[
+  {nm:"YouTube",    ic:"▶",  a:"#ff0033", type:"roku-app", name:"YouTube"},
+  {nm:"YouTube TV", ic:"📺", a:"#ff0033", type:"roku-app", name:"YouTube TV"},
+  {nm:"Vevo",       ic:"🎵", a:"#ff6d00", type:"roku-app", name:"Vevo"},
+  {nm:"Roku Home",  ic:"🔀", a:"#6f1ab1", type:"roku"},
+];
+const COLS=4;
+let focus=0;
+const grid=document.getElementById('grid');
+TILES.forEach((t,i)=>{
+  const el=document.createElement('div'); el.className='tile'; el.dataset.i=i;
+  el.style.setProperty('--a',t.a);
+  el.innerHTML=`<div class="accent"></div><div class="ic">${t.ic||t.nm[0]}</div><div class="nm">${t.nm}</div>`+
+    (t.sub?`<div class="sub">${t.sub}</div>`:``);
+  el.onclick=()=>{focus=i;paint();activate();};
+  grid.appendChild(el);
+});
+function paint(){
+  [...grid.children].forEach((el,i)=>el.classList.toggle('focus',i===focus));
+  const el=grid.children[focus]; if(el) el.scrollIntoView({block:'nearest'});
+}
+function move(dx,dy){
+  const row=Math.floor(focus/COLS), col=focus%COLS;
+  const rows=Math.ceil(TILES.length/COLS);
+  let nr=row+dy, nc=col+dx;
+  if(nc<0)nc=0; if(nc>COLS-1)nc=COLS-1;
+  if(nr<0)nr=0; if(nr>rows-1)nr=rows-1;
+  let ni=nr*COLS+nc;
+  if(ni>TILES.length-1) ni=TILES.length-1;
+  focus=ni; paint();
+}
+async function activate(){
+  const t=TILES[focus];
+  showOv("Launching "+t.nm+"…");
+  try{
+    if(t.type==="roku"){
+      await fetch('/api/roku/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    }else if(t.type==="roku-app"){
+      await fetch('/api/roku/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:t.name})});
+    }else{
+      await fetch('/api/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:t.name})});
+    }
+  }catch(e){ showOv("Couldn't launch "+t.nm); setTimeout(hideOv,1600); }
+}
+function showOv(txt){document.getElementById('ovtxt').textContent=txt;document.getElementById('ov').classList.add('show');}
+function hideOv(){document.getElementById('ov').classList.remove('show');}
+
+// ---- key handling (Conjure delivers the TV remote as keydown) ----
+window.addEventListener('keydown',e=>{
+  const k=e.key, c=e.keyCode;
+  if(k==='ArrowLeft'||c===37){move(-1,0);e.preventDefault();}
+  else if(k==='ArrowRight'||c===39){move(1,0);e.preventDefault();}
+  else if(k==='ArrowUp'||c===38){move(0,-1);e.preventDefault();}
+  else if(k==='ArrowDown'||c===40){move(0,1);e.preventDefault();}
+  else if(k==='Enter'||c===13){activate();e.preventDefault();}
+});
+
+// ---- clock (time comes from Tank; the TV's own clock/timezone is unreliable) ----
+async function tick(){
+  try{
+    const r=await fetch('/api/time'); const t=await r.json();
+    if(t.ok){
+      document.getElementById('clock').textContent=t.time;
+      document.getElementById('date').textContent=t.date;
+      return;
+    }
+  }catch(e){}
+  // fallback to the TV's local clock only if Tank is unreachable
+  const d=new Date(); let h=d.getHours(), m=d.getMinutes();
+  const ampm=h>=12?'PM':'AM'; h=h%12||12;
+  document.getElementById('clock').textContent=h+':'+String(m).padStart(2,'0')+' '+ampm;
+}
+tick(); setInterval(tick,15000);
+
+// ---- weather ----
+async function loadWx(){
+  try{
+    const r=await fetch('/api/weather'); const w=await r.json();
+    if(!w.ok){document.getElementById('wx').innerHTML='<div class="wx-sub">weather unavailable</div>';return;}
+    const days=w.days.map(d=>
+      `<div class="wx-day"><b>${d.day}</b><div class="di">${d.icon}</div><div class="temps">${d.hi}° / ${d.lo}°</div></div>`
+    ).join('');
+    document.getElementById('wx').innerHTML=
+      `<div class="wx-now"><div class="wx-icon">${w.icon}</div><div class="wx-temp">${w.temp}°</div></div>`+
+      `<div class="wx-sub">${w.text} · feels ${w.feels}°</div>`+
+      `<div class="wx-days">${days}</div>`;
+  }catch(e){}
+}
+loadWx(); setInterval(loadWx,600000);
+
+// ---- quote of the day ----
+function getParam(n){
+  const m=location.search.match(new RegExp('[?&]'+n+'=([^&]*)'));
+  return m?decodeURIComponent(m[1].replace(/\+/g,' ')):null;
+}
+function showQuote(text,author){
+  document.getElementById('quote').innerHTML=
+    '<div class="qt">“'+text+'”</div>'+
+    '<div class="qa">— '+(author||'Unknown')+'</div>';
+  setTimeout(fitQuote,50);
+}
+async function loadQuote(){
+  const tq=getParam('tq');              // test override: ?tq=<quote>&ta=<author>
+  if(tq){ showQuote(tq,getParam('ta')||'Test'); return; }
+  try{
+    const r=await fetch('/api/quote'); const q=await r.json();
+    if(q.ok&&q.text) showQuote(q.text,q.author);
+  }catch(e){}
+}
+// shrink the quote text until it fits the fixed-size panel (never overflows)
+function fitQuote(){
+  const box=document.getElementById('quote');
+  const max=window.innerWidth*0.027, min=window.innerWidth*0.013;
+  const step=Math.max(1,window.innerWidth*0.0012);
+  let size=max; box.style.fontSize=size+'px';
+  let guard=0;
+  while(box.scrollHeight>box.clientHeight && size>min && guard<120){
+    size-=step; box.style.fontSize=size+'px'; guard++;
+  }
+}
+// quote disabled (kept the function/CSS dormant so it's easy to re-enable)
+// loadQuote(); setInterval(loadQuote,30*60*1000);
+
+// ---- rotating background (Tank proxies a fresh random image each time) ----
+const ROTATE_MS=60*1000;   // new image every 1 minute
+const bgEls=[document.getElementById('bgA'),document.getElementById('bgB')];
+let bgActive=0;
+function rotateBg(){
+  const url="/bg/next?t="+Date.now();
+  const incoming=bgEls[1-bgActive];
+  const img=new Image();
+  img.onload=()=>{
+    incoming.style.backgroundImage="url('"+url+"')";
+    incoming.classList.add('on');
+    bgEls[bgActive].classList.remove('on');
+    bgActive=1-bgActive;
+  };
+  img.onerror=()=>{};   // keep current background if a fetch fails
+  img.src=url;
+}
+rotateBg(); setInterval(rotateBg,ROTATE_MS);
+
+paint();
+</script>
+</body>
+</html>
