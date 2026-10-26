@@ -241,7 +241,7 @@ function render(s){
   }
   document.getElementById('statusDot').style.boxShadow='';
   setStatus(s.power, s.power?'On':'Standby');
-  const app = s.app && s.app!=='SmartCast Home' ? ' · '+s.app : '';
+  const app = (s.app && s.app!=='SmartCast Home' && s.app!=='_UNKNOWN_APP') ? ' · '+s.app : '';
   document.getElementById('sub').textContent=subPrefix()+' · '+(s.input||'—')+app;
   const pb=document.getElementById('powerBtn');
   pb.className='btn power wide'+(s.power?' on':''); pb.textContent=(s.power?'⏻ Power — On':'⏻ Power — Standby');
